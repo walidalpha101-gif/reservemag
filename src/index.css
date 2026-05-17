@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+
+  --color-reserve-bg: #050505;
+  --color-reserve-text: #F4F4F0;
+  --color-reserve-gray: #A1A1A1;
+  --color-reserve-accent: #D4AF37;
+  --color-reserve-border: rgba(255, 255, 255, 0.08);
+
+  /* Architectural Spacing Scale */
+  --spacing-container: 2rem;
+  --spacing-section: 6rem;
+  
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+  --breakpoint-ultrawide: 1920px;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-reserve-bg);
+    color: var(--color-reserve-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply overflow-x-hidden;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* Ultrawide Constraint */
+  .container {
+    @apply mx-auto px-6 md:px-12 w-full max-w-[1600px];
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+    font-family: var(--font-serif);
+    font-weight: 500;
+  }
+}
+
+/* Custom Utilities */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.5rem;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.cinematic-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.cinematic-bg img {
+  object-fit: cover;
+  transition: transform 1.2s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.cinematic-bg:hover img {
+  transform: scale(1.05);
+}
+
+.glass-nav {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(5, 5, 5, 0.8);
+  border-bottom: 1px solid var(--color-reserve-border);
+}
+
+.stagger-reveal > * {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+/* Hide scrollbar for clean look */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
