@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "Article": {
+      "title": "Article",
+      "description": "A magazine article entry",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "category": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "readTime": { "type": "string" },
+        "slug": { "type": "string" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "credit": { "type": "string" },
+            "source": { "type": "string" }
+          }
+        },
+        "featured": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["draft", "published", "scheduled"] },
+        "content": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string" },
+              "text": { "type": "string" },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "bold": { "type": "boolean" },
+                  "italic": { "type": "boolean" },
+                  "underline": { "type": "boolean" },
+                  "strikethrough": { "type": "boolean" },
+                  "fontSize": { "type": "string" },
+                  "alignment": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "seo": {
+          "type": "object",
+          "properties": {
+            "metaTitle": { "type": "string" },
+            "metaDescription": { "type": "string" },
+            "socialImage": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "category", "author", "image", "status"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "User with administrative privileges",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "editor"] }
+      },
+      "required": ["email", "role"]
+    },
+    "HomepageConfig": {
+      "title": "Homepage Configuration",
+      "description": "Layout settings for the homepage",
+      "type": "object",
+      "properties": {
+        "heroArticleId": { "type": "string" },
+        "featuredArticleIds": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "Global settings for the magazine",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "ctaButton": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "socialUrls": {
+          "type": "object",
+          "properties": {
+            "facebook": { "type": "string" },
+            "instagram": { "type": "string" }
+          }
+        },
+        "footerUrls": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Subscriber": {
+      "title": "Newsletter Subscriber",
+      "description": "Email record for newsletter signups",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "source": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "VideoInterview": {
+      "title": "Video Interview",
+      "description": "A YouTube interview entry",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["youtubeUrl", "category", "featured"]
+    },
+    "FeaturedRequest": {
+      "title": "Featured Request",
+      "description": "A lead for partnerships",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "brand": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "facebookUrl": { "type": "string" },
+        "instagramUrl": { "type": "string" },
+        "linkedinUrl": { "type": "string" },
+        "industry": { "type": "string" },
+        "budget": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["whatsapp"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Dynamic category for articles",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "SystemLog": {
+      "title": "System Log",
+      "description": "Audit trail for system operations",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "mode": { "type": "string" },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "articles": {
+      "schema": "Article",
+      "description": "Collection of magazine articles"
+    },
+    "categories": {
+      "schema": "Category",
+      "description": "Collection of dynamic categories"
+    },
+    "system_logs": {
+      "schema": "SystemLog",
+      "description": "Collection of system operation logs"
+    },
+    "admins": {
+      "schema": "Admin",
+      "description": "Collection of system administrators"
+    },
+    "settings": {
+      "schema": "SiteSettings",
+      "description": "Global site and layout settings"
+    },
+    "newsletter_subscribers": {
+      "schema": "Subscriber",
+      "description": "Collection of newsletter email leads"
+    },
+    "featured_requests": {
+      "schema": "FeaturedRequest",
+      "description": "Collection of partnership leads"
+    },
+    "video_interviews": {
+      "schema": "VideoInterview",
+      "description": "Collection of YouTube interview videos"
+    },
+    "media": {
+      "schema": "object",
+      "description": "Collection of media assets and metadata"
+    }
+  }
+}

@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isVerified() { return request.auth.token.email_verified == true; }
+
+    // Validation Helpers
+    function isValidArticle(data) {
+      return data.keys().hasAll(['title', 'slug', 'category', 'author', 'image', 'status'])
+        && data.title is string && data.title.size() <= 200
+        && data.slug is string && data.slug.size() <= 200
+        && data.category is string && data.category.size() <= 64
+        && data.author is string && data.author.size() <= 128
+        && data.image is map
+        && data.image.url is string && data.image.url.size() <= 1024
+        && data.image.get('credit', '') is string && data.image.get('credit', '').size() <= 256
+        && data.status in ['draft', 'published', 'scheduled']
+        && (data.get('featured', false) is bool);
+    }
+
+    function isValidSubscriber(data) {
+      return data.email is string && data.email.size() <= 256;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'role'])
+        && data.email is string && data.email.size() <= 256
+        && data.role in ['admin', 'editor'];
+    }
+
+    function isValidFeaturedRequest(data) {
+      return data.whatsapp is string && data.whatsapp.size() <= 32
+        && (data.get('email', '') is string && data.get('email', '').size() <= 256)
+        && (data.get('facebookUrl', '') is string && data.get('facebookUrl', '').size() <= 512)
+        && (data.get('instagramUrl', '') is string && data.get('instagramUrl', '').size() <= 512)
+        && (data.get('linkedinUrl', '') is string && data.get('linkedinUrl', '').size() <= 512)
+        && data.status in ['New', 'Contacted', 'Closed'];
+    }
+
+    function isValidVideoInterview(data) {
+      return data.youtubeUrl is string && data.youtubeUrl.size() <= 1024
+        && data.category is string && data.category.size() <= 128
+        && (data.get('title', '') is string && data.get('title', '').size() <= 256)
+        && data.featured is bool;
+    }
+
+    function isValidCategory(data) {
+      return data.name is string && data.name.size() <= 64;
+    }
+
+    // Collection Rules
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create: if (isAdmin() || (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com")) && isVerified() && isValidArticle(incoming());
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com")) && isVerified() && isValidArticle(incoming());
+      allow delete: if isAdmin() && isVerified();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update: if (isAdmin() || (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com")) && isVerified() && isValidCategory(incoming());
+      allow delete: if (isAdmin() || (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com")) && isVerified();
+    }
+
+    match /video_interviews/{videoId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isVerified() && isValidVideoInterview(incoming());
+      allow delete: if isAdmin() && isVerified();
+    }
+
+    match /featured_requests/{requestId} {
+      allow read, list, delete: if isAdmin() && isVerified();
+      allow create: if isValidFeaturedRequest(incoming());
+      allow update: if isAdmin() && isVerified() && isValidFeaturedRequest(incoming());
+    }
+
+    match /newsletter_subscribers/{subscriberId} {
+      allow read, list, delete: if isAdmin() && isVerified();
+      allow create: if isValidSubscriber(incoming());
+    }
+
+    match /admins/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if (isAdmin() && isVerified() && isValidAdmin(incoming())) ||
+                   (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com" && request.auth.uid == userId && isVerified());
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() && isVerified();
+    }
+
+    match /media/{assetId} {
+      allow read: if true;
+      allow write: if isAdmin() && isVerified();
+    }
+
+    match /system_logs/{logId} {
+      allow read: if isAdmin() && isVerified();
+      allow create: if (isAdmin() || (isSignedIn() && request.auth.token.email == "walid.alpha101@gmail.com")) && isVerified();
+    }
+  }
+}

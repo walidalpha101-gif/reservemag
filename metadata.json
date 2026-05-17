@@ -1,0 +1,8 @@
+{
+  "name": "The Reserve Magazine",
+  "description": "A luxury editorial publication focused on fashion, culture, and high-end lifestyle.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
