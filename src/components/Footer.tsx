@@ -1,4 +1,4 @@
-import { Instagram, Twitter, Facebook, ArrowUp, Shield } from 'lucide-react';
+import { Instagram, Facebook, ArrowUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useFirebase } from '../context/FirebaseContext';
 
@@ -43,7 +43,7 @@ export default function Footer() {
             <span className="text-[10px] uppercase tracking-widest text-reserve-gray block mb-8 font-bold">Registry Index</span>
             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
               {[
-                'Navigation', 'Digital Archive', 'Editorial Policy', 'Private Ledger',
+                'Navigation', 'Digital Archive', 'Editorial Policy',
                 'Editorial Board', 'Advertising', 'Legal'
               ].map((label) => {
                 const url = siteSettings?.footerUrls?.[label] || '/';

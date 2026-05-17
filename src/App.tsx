@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -16,8 +16,6 @@ import GetFeaturedPage from './pages/GetFeaturedPage';
 import { Article, Category, HomepageConfig } from './types';
 import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 import { articleService } from './services/articleService';
-import { signInWithGoogle, logout } from './lib/firebase';
-import { LogIn, LogOut, Settings, Users } from 'lucide-react';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -138,65 +136,6 @@ function Home() {
       </main>
 
       <Footer />
-      <AuthControls />
-    </div>
-  );
-}
-
-function AuthControls() {
-  const { user, isAdmin: isUserAdmin } = useFirebase();
-
-  return (
-    <div className="fixed bottom-6 left-6 z-[60] flex flex-col gap-3">
-      {!user ? (
-        <button 
-          onClick={signInWithGoogle}
-          className="bg-white/10 backdrop-blur-md p-3 rounded-full text-white/50 hover:text-white hover:bg-white/20 transition-all border border-white/5"
-          title="Sign In"
-        >
-          <LogIn size={20} />
-        </button>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <button 
-            onClick={logout}
-            className="bg-white/10 backdrop-blur-md p-3 rounded-full text-white/50 hover:text-white hover:bg-white/20 transition-all border border-white/5"
-            title={`Sign Out (${user.displayName})`}
-          >
-            <LogOut size={20} />
-          </button>
-          
-          <div className="flex flex-col gap-3">
-            <Link 
-              to="/admin" 
-              className="bg-reserve-accent p-3 rounded-full text-reserve-bg hover:scale-110 transition-all shadow-lg flex items-center justify-center"
-              title="Admin Panel"
-            >
-              <Settings size={20} />
-            </Link>
-          </div>
-          
-          {!isUserAdmin && user.email === 'walid.alpha101@gmail.com' && (
-            <button 
-              onClick={async () => {
-                const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-                const { db } = await import('./lib/firebase');
-                await setDoc(doc(db, 'admins', user.uid), {
-                  email: user.email,
-                  role: 'admin',
-                  createdAt: serverTimestamp()
-                });
-                alert('Admin profile provisioned. Please refresh.');
-                window.location.reload();
-              }}
-              className="bg-emerald-500 p-3 rounded-full text-white animate-pulse"
-              title="Initialize Admin Rights"
-            >
-              <Users size={20} />
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
