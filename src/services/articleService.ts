@@ -154,5 +154,16 @@ export const articleService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
     }
+  },
+
+  async isAuthorUsed(authorId: string): Promise<boolean> {
+    try {
+      const q = query(collection(db, COLLECTION_NAME), where('authorId', '==', authorId), limit(1));
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error checking author usage:', error);
+      return false;
+    }
   }
 };

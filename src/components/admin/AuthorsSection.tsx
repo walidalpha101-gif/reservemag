@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Author } from '../../types';
 import { authorService } from '../../services/authorService';
+import { articleService } from '../../services/articleService';
 import { mediaService } from '../../services/mediaService';
 
 export default function AuthorsSection() {
@@ -129,14 +130,50 @@ export default function AuthorsSection() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete author "${name}"? Stories will lose their associated profile card.`)) return;
-
-    setLoading(true);
     try {
+      setLoading(true);
+      setError(null);
+      console.log('Initiating delete check for author:', { id, name });
+
+      // Check if author is in use
+      const inUse = await articleService.isAuthorUsed(id);
+      
+      let confirmMessage = `Delete author "${name}"?`;
+      if (inUse) {
+        confirmMessage = `ATTENTION: "${name}" is currently assigned to one or more stories. Deleting this author will leave those stories without a profile card (fallback to text name only). \n\nAre you absolutely sure you want to proceed?`;
+      } else {
+        confirmMessage = `Delete author "${name}"? This action cannot be undone.`;
+      }
+
+      if (!confirm(confirmMessage)) {
+        setLoading(false);
+        return;
+      }
+
+      console.log('Proceeding with deletion of doc:', id);
       await authorService.deleteAuthor(id);
-      await loadAuthors();
-    } catch (err) {
-      setError('Failed to delete author');
+      
+      console.log('Author deleted successfully from Firestore. Refreshing local registry...');
+      
+      // Update local state immediately for fast feedback
+      setAuthors(prev => prev.filter(a => a.id !== id));
+      
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Delete Author Flow Error:', err);
+      
+      let message = `Failed to delete author "${name}".`;
+      
+      try {
+        const errInfo = JSON.parse(err.message);
+        if (errInfo.error) {
+          message = `Firebase Delete Error: ${errInfo.error}`;
+        }
+      } catch (pErr) {
+        message = err.message || message;
+      }
+      
+      setError(message);
       setLoading(false);
     }
   };
