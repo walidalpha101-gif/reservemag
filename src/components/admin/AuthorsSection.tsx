@@ -73,16 +73,44 @@ export default function AuthorsSection() {
     if (!formData.name.trim()) return;
 
     setLoading(true);
+    setError(null);
+    
+    const payload = {
+      ...formData,
+      name: formData.name.trim(),
+      designation: formData.designation.trim(),
+      role: formData.role.trim(),
+      imageUrl: formData.imageUrl.trim()
+    };
+
+    console.log('Attempting to save author:', { editingId, payload });
+
     try {
       if (editingId) {
-        await authorService.updateAuthor(editingId, formData);
+        await authorService.updateAuthor(editingId, payload);
       } else {
-        await authorService.createAuthor(formData);
+        await authorService.createAuthor(payload);
       }
+      console.log('Author saved successfully');
       resetForm();
       await loadAuthors();
-    } catch (err) {
-      setError('Failed to save author');
+    } catch (err: any) {
+      console.error('Save Author Error:', err);
+      
+      let message = 'Failed to save author profile.';
+      
+      try {
+        // Try to parse JSON error from handleFirestoreError
+        const errInfo = JSON.parse(err.message);
+        if (errInfo.error) {
+          message = `Firebase Error: ${errInfo.error}`;
+        }
+      } catch (pErr) {
+        // Not a JSON error, use original message
+        message = err.message || message;
+      }
+      
+      setError(message);
     } finally {
       setLoading(false);
     }
