@@ -21,6 +21,16 @@ export interface ContentBlock {
   style: ContentBlockStyle;
 }
 
+export interface Author {
+  id?: string;
+  name: string;
+  designation: string;
+  role: string;
+  imageUrl?: string;
+  active: boolean;
+  createdAt?: any;
+}
+
 export interface Article {
   id?: string;
   slug: string;
@@ -32,6 +42,7 @@ export interface Article {
   status: ArticleStatus;
   featured: boolean;
   author: string;
+  authorId?: string;
   image: {
     url: string;
     credit: string;

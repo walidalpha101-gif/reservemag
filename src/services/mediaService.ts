@@ -90,6 +90,10 @@ export const mediaService = {
     return this.uploadFile(file, 'articles', onProgress);
   },
 
+  async uploadAuthorImage(file: File, onProgress?: (progress: number) => void): Promise<string> {
+    return this.uploadFile(file, 'authors', onProgress);
+  },
+
   async uploadSettingsImage(file: File, onProgress?: (progress: number) => void): Promise<string> {
     return this.uploadFile(file, 'settings', onProgress);
   },

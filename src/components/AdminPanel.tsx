@@ -16,7 +16,8 @@ import {
   Briefcase,
   Video,
   Database,
-  Layers
+  Layers,
+  Users
 } from 'lucide-react';
 import { useFirebase } from '../context/FirebaseContext';
 import { logout } from '../lib/firebase';
@@ -32,8 +33,9 @@ import LeadSection from './admin/LeadSection';
 import VideoSection from './admin/VideoSection';
 import BulkImportSection from './admin/BulkImportSection';
 import CategorySection from './admin/CategorySection';
+import AuthorsSection from './admin/AuthorsSection';
 
-type Tab = 'overview' | 'stories' | 'bulk-import' | 'categories' | 'videos' | 'newsletter' | 'homepage' | 'settings' | 'leads';
+type Tab = 'overview' | 'stories' | 'bulk-import' | 'categories' | 'authors' | 'videos' | 'newsletter' | 'homepage' | 'settings' | 'leads';
 
 export default function AdminPanel() {
   const { user } = useFirebase();
@@ -50,6 +52,7 @@ export default function AdminPanel() {
     { id: 'stories', label: 'Stories', icon: FileText },
     { id: 'bulk-import', label: 'Bulk Import', icon: Database },
     { id: 'categories', label: 'Categories', icon: Layers },
+    { id: 'authors', label: 'Authors', icon: Users },
     { id: 'videos', label: 'Video Interviews', icon: Video },
     { id: 'leads', label: 'Lead Requests', icon: Briefcase },
     { id: 'newsletter', label: 'Newsletter', icon: Mail },
@@ -63,6 +66,7 @@ export default function AdminPanel() {
       case 'stories': return <StoriesSection />;
       case 'bulk-import': return <BulkImportSection />;
       case 'categories': return <CategorySection />;
+      case 'authors': return <AuthorsSection />;
       case 'videos': return <VideoSection />;
       case 'newsletter': return <NewsletterSection />;
       case 'leads': return <LeadSection />;

@@ -19,8 +19,9 @@ import {
   Image as ImageIcon,
   Link as LinkIcon
 } from 'lucide-react';
-import { Article, ArticleStatus, Category } from '../../types';
+import { Article, ArticleStatus, Category, Author } from '../../types';
 import { articleService } from '../../services/articleService';
+import { authorService } from '../../services/authorService';
 import { mediaService } from '../../services/mediaService';
 import RichTextEditor from './RichTextEditor';
 
@@ -35,10 +36,12 @@ export default function StoriesSection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [categories, setCategories] = useState<string[]>([]);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     loadArticles();
+    loadAuthors();
     
     // Setup categories listener
     const q = query(collection(db, 'categories'), orderBy('name', 'asc'));
@@ -55,6 +58,11 @@ export default function StoriesSection() {
     const data = await articleService.getAllArticles(true);
     setArticles(data);
     setLoading(false);
+  };
+
+  const loadAuthors = async () => {
+    const data = await authorService.getAllAuthors();
+    setAuthors(data.filter(a => a.active));
   };
 
   const handleCreateNew = () => {
@@ -265,15 +273,44 @@ export default function StoriesSection() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Author Name</label>
-              <input 
-                type="text"
-                placeholder="Editors of The Reserve"
-                value={editingArticle.author}
-                onChange={(e) => setEditingArticle({ ...editingArticle, author: e.target.value })}
+              <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Editorial Author</label>
+              <select 
+                value={editingArticle.authorId || 'custom'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'custom') {
+                    setEditingArticle({ ...editingArticle, authorId: undefined });
+                  } else {
+                    const selected = authors.find(a => a.id === val);
+                    if (selected) {
+                      setEditingArticle({ 
+                        ...editingArticle, 
+                        authorId: selected.id,
+                        author: selected.name 
+                      });
+                    }
+                  }
+                }}
                 className="w-full bg-black border border-white/10 p-2.5 text-xs text-white focus:outline-none focus:border-reserve-accent"
-              />
+              >
+                <option value="custom">-- Custom/Independent --</option>
+                {authors.map(author => (
+                  <option key={author.id} value={author.id}>{author.name}</option>
+                ))}
+              </select>
             </div>
+            {!editingArticle.authorId && (
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Manual Name</label>
+                <input 
+                  type="text"
+                  placeholder="Editors of The Reserve"
+                  value={editingArticle.author}
+                  onChange={(e) => setEditingArticle({ ...editingArticle, author: e.target.value })}
+                  className="w-full bg-black border border-white/10 p-2.5 text-xs text-white focus:outline-none focus:border-reserve-accent"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Publish Date</label>
               <input 

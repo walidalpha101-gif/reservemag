@@ -3,17 +3,21 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Eye, Clock, User, Share2, ArrowLeft, Bookmark } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { Article } from '../types';
+import { Article, Author } from '../types';
 import { articleService } from '../services/articleService';
+import { authorService } from '../services/authorService';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Newsletter from '../components/Newsletter';
 import RichTextRenderer from '../components/ui/RichTextRenderer';
 import SocialShare from '../components/SocialShare';
+import AuthorProfileCard from '../components/AuthorProfileCard';
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>();
   const [article, setArticle] = useState<Article | null>(null);
+  const [authorData, setAuthorData] = useState<Author | null>(null);
+  const [isAuthorCardOpen, setIsAuthorCardOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -22,6 +26,14 @@ export default function ArticlePage() {
       loadArticle();
     }
   }, [slug]);
+
+  useEffect(() => {
+    if (article?.authorId) {
+      loadAuthor(article.authorId);
+    } else {
+      setAuthorData(null);
+    }
+  }, [article]);
 
   const loadArticle = async () => {
     setLoading(true);
@@ -34,6 +46,11 @@ export default function ArticlePage() {
     }
     setLoading(false);
     window.scrollTo(0, 0);
+  };
+
+  const loadAuthor = async (id: string) => {
+    const data = await authorService.getAuthorById(id);
+    setAuthorData(data);
   };
 
   if (loading) {
@@ -118,13 +135,23 @@ export default function ArticlePage() {
                   {/* Metadata Row - Moved above image for better mobile flow */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 py-8 md:py-12 border-y border-white/5">
                     <div className="flex items-center gap-8">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 md:w-14 md:h-14 bg-zinc-900 border border-white/10 flex items-center justify-center font-serif text-lg md:text-xl text-reserve-accent">
-                          {displayAuthor[0]}
+                      <div 
+                        className={`flex items-center gap-4 ${authorData ? 'cursor-pointer group/author' : ''}`}
+                        onClick={() => authorData && setIsAuthorCardOpen(true)}
+                      >
+                        <div className="w-12 h-12 md:w-14 md:h-14 bg-zinc-900 border border-white/10 flex items-center justify-center font-serif text-lg md:text-xl text-reserve-accent overflow-hidden">
+                          {authorData?.imageUrl ? (
+                            <img src={authorData.imageUrl} className="w-full h-full object-cover grayscale group-hover/author:grayscale-0 transition-all" alt="" referrerPolicy="no-referrer" />
+                          ) : (
+                            displayAuthor[0]
+                          )}
                         </div>
                         <div>
                           <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 mb-0.5">Words by</p>
-                          <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.1em]">{displayAuthor}</p>
+                          <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.1em] group-hover/author:text-reserve-accent transition-colors flex items-center gap-2">
+                            {displayAuthor}
+                            {authorData && <span className="w-1 h-1 bg-reserve-accent rounded-full animate-pulse" />}
+                          </p>
                         </div>
                       </div>
                       <div className="hidden sm:block h-10 w-[1px] bg-white/10" />
@@ -259,6 +286,14 @@ export default function ArticlePage() {
       </main>
 
       <Footer />
+      
+      {authorData && (
+        <AuthorProfileCard 
+          author={authorData}
+          isOpen={isAuthorCardOpen}
+          onClose={() => setIsAuthorCardOpen(false)}
+        />
+      )}
     </div>
   );
 }
