@@ -41,9 +41,16 @@ export default function AuthorsSection() {
 
   const loadAuthors = async () => {
     setLoading(true);
-    const data = await authorService.getAllAuthors();
-    setAuthors(data);
-    setLoading(false);
+    setError(null);
+    try {
+      const data = await authorService.getAllAuthors();
+      setAuthors(data);
+    } catch (err) {
+      console.error('Error loading authors:', err);
+      setError('Failed to retrieve author ledger. Please check your permissions.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,11 +103,13 @@ export default function AuthorsSection() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete author "${name}"? Stories will lose their associated profile card.`)) return;
 
+    setLoading(true);
     try {
       await authorService.deleteAuthor(id);
       await loadAuthors();
     } catch (err) {
       setError('Failed to delete author');
+      setLoading(false);
     }
   };
 
@@ -172,29 +181,49 @@ export default function AuthorsSection() {
             <div className="space-y-6">
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Profile Image</label>
-                <div className="flex items-center gap-6">
-                  <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-900 border border-white/10 relative group">
-                    {formData.imageUrl ? (
-                      <img src={formData.imageUrl} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-700">
-                        <ImageIcon size={32} />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-900 border border-white/10 relative group">
+                      {formData.imageUrl ? (
+                        <img 
+                          src={formData.imageUrl} 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://via.placeholder.com/400x400?text=Invalid+URL';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                          <ImageIcon size={32} />
+                        </div>
+                      )}
+                      <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <Camera size={20} className="text-white" />
+                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                      </label>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div className="text-[10px] text-zinc-600">
+                        {uploading ? (
+                          <div className="flex items-center gap-2 text-reserve-accent">
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>Processing...</span>
+                          </div>
+                        ) : (
+                          <p>Upload a high-resolution portrait or paste a CDN link below.</p>
+                        )}
                       </div>
-                    )}
-                    <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                      <Camera size={20} className="text-white" />
-                      <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                    </label>
-                  </div>
-                  <div className="text-[10px] text-zinc-600">
-                    {uploading ? (
-                      <div className="flex items-center gap-2 text-reserve-accent">
-                        <Loader2 size={12} className="animate-spin" />
-                        <span>Processing...</span>
+                      
+                      <div className="relative">
+                        <input 
+                          type="url"
+                          placeholder="Paste External Image URL..."
+                          value={formData.imageUrl}
+                          onChange={e => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                          className="w-full bg-zinc-900/50 border border-white/5 px-3 py-2 text-[10px] text-zinc-400 focus:border-white/20 outline-none transition-colors"
+                        />
                       </div>
-                    ) : (
-                      <p>Recommended: 400x400px JPEG/PNG</p>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
