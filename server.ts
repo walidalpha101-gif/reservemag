@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
+import * as cheerio from 'cheerio';
+import { GoogleGenAI } from '@google/genai';
 
 // Firebase imports for server side
 import { initializeApp } from 'firebase/app';
@@ -24,6 +26,221 @@ async function startServer() {
   // Set permissive security settings
   app.use(cors());
   app.set('trust proxy', true);
+
+  // JSON body parser for API routes
+  app.use(express.json({ limit: '10mb' }));
+
+  // AI Article Ingestion Endpoint
+  app.post('/api/ingest-article', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+      }
+
+      // Validate URL format
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return res.status(400).json({ error: 'Invalid URL format' });
+      }
+
+      console.log(`[Ingestion] Starting extraction for: ${url}`);
+
+      // Fetch the article page
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(400).json({ error: `Failed to fetch URL: ${response.status} ${response.statusText}` });
+      }
+
+      const html = await response.text();
+      const $ = cheerio.load(html);
+
+      // Remove unwanted elements
+      $('script, style, nav, header, footer, aside, .ad, .advertisement, .social-share, .comments, .related-posts, noscript, iframe').remove();
+
+      // Extract article metadata
+      const originalTitle = 
+        $('meta[property="og:title"]').attr('content') ||
+        $('meta[name="twitter:title"]').attr('content') ||
+        $('h1').first().text() ||
+        $('title').text() ||
+        '';
+
+      const originalExcerpt = 
+        $('meta[property="og:description"]').attr('content') ||
+        $('meta[name="description"]').attr('content') ||
+        $('meta[name="twitter:description"]').attr('content') ||
+        '';
+
+      const originalImage = 
+        $('meta[property="og:image"]').attr('content') ||
+        $('meta[name="twitter:image"]').attr('content') ||
+        $('article img').first().attr('src') ||
+        $('main img').first().attr('src') ||
+        '';
+
+      // Resolve relative image URLs
+      const resolvedImage = originalImage ? new URL(originalImage, url).href : '';
+
+      // Extract article content
+      const articleSelectors = [
+        'article',
+        '[role="main"]',
+        '.article-content',
+        '.post-content',
+        '.entry-content',
+        '.story-body',
+        'main',
+        '.content'
+      ];
+
+      let articleText = '';
+      for (const selector of articleSelectors) {
+        const element = $(selector);
+        if (element.length) {
+          articleText = element
+            .find('p')
+            .map((_, el) => $(el).text().trim())
+            .get()
+            .filter(text => text.length > 50)
+            .join('\n\n');
+          if (articleText.length > 200) break;
+        }
+      }
+
+      // Fallback: grab all paragraphs
+      if (articleText.length < 200) {
+        articleText = $('p')
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter(text => text.length > 50)
+          .join('\n\n');
+      }
+
+      if (!articleText || articleText.length < 100) {
+        return res.status(400).json({ error: 'Could not extract meaningful content from this URL' });
+      }
+
+      console.log(`[Ingestion] Extracted ${articleText.length} chars of content`);
+
+      // Initialize Gemini AI
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        return res.status(500).json({ error: 'Gemini API key not configured' });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+      // AI Rewrite Prompt - THE RESERVE editorial tone
+      const rewritePrompt = `You are a senior editor at THE RESERVE, an elite editorial publication investigating Asian luxury and culture. Your writing style is:
+- Sophisticated and authoritative
+- Rich in narrative detail
+- Balances reverence for heritage with contemporary relevance
+- Uses precise, evocative language
+- Avoids clichés and hyperbole
+- Maintains editorial distance while being engaging
+
+TASK: Rewrite the following article in THE RESERVE's distinctive voice. The content should feel like original editorial journalism, not a rehash.
+
+ORIGINAL ARTICLE:
+Title: ${originalTitle}
+Content:
+${articleText.substring(0, 8000)}
+
+RESPOND WITH VALID JSON ONLY (no markdown, no code blocks):
+{
+  "title": "A compelling headline (50-80 chars, no quotes around the title)",
+  "subtitle": "A one-line subheading that adds context (optional, 60-100 chars)",
+  "excerpt": "A captivating 2-3 sentence summary for article cards (150-200 chars)",
+  "category": "One of: Profiles | Culture | Business | Lifestyle | Art & Design | Travel | Fashion | Technology",
+  "paragraphs": [
+    "First paragraph of the rewritten article...",
+    "Second paragraph...",
+    "Continue with 4-8 substantial paragraphs that tell a complete story..."
+  ]
+}`;
+
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: rewritePrompt,
+      });
+
+      const aiText = result.text?.trim() || '';
+      
+      // Parse AI response - handle potential markdown code blocks
+      let parsed;
+      try {
+        // Remove markdown code block wrapper if present
+        let jsonText = aiText;
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.slice(7);
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.slice(3);
+        }
+        if (jsonText.endsWith('```')) {
+          jsonText = jsonText.slice(0, -3);
+        }
+        parsed = JSON.parse(jsonText.trim());
+      } catch (parseError) {
+        console.error('[Ingestion] Failed to parse AI response:', aiText.substring(0, 500));
+        return res.status(500).json({ error: 'AI returned invalid response format' });
+      }
+
+      // Convert paragraphs to ContentBlock format
+      const contentBlocks = (parsed.paragraphs || []).map((text: string, index: number) => ({
+        id: `block-${Date.now()}-${index}`,
+        type: 'paragraph',
+        text: text,
+        style: {
+          bold: false,
+          italic: false,
+          underline: false,
+          strikethrough: false,
+          fontSize: index === 0 ? 'large' : 'medium',
+          alignment: 'left'
+        }
+      }));
+
+      const ingestedArticle = {
+        title: parsed.title || originalTitle,
+        subtitle: parsed.subtitle || '',
+        excerpt: parsed.excerpt || originalExcerpt,
+        category: parsed.category || 'Culture',
+        content: contentBlocks,
+        image: {
+          url: resolvedImage,
+          credit: `Source: ${parsedUrl.hostname}`,
+          source: url
+        },
+        sourceUrl: url,
+        sourceTitle: originalTitle,
+        sourceDomain: parsedUrl.hostname
+      };
+
+      console.log(`[Ingestion] Success! Generated ${contentBlocks.length} content blocks`);
+
+      return res.json({ 
+        success: true, 
+        article: ingestedArticle 
+      });
+
+    } catch (error: any) {
+      console.error('[Ingestion] Error:', error);
+      return res.status(500).json({ 
+        error: error.message || 'Failed to process article' 
+      });
+    }
+  });
 
   // Load config
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
