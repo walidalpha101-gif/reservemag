@@ -86,33 +86,60 @@ export default function AIIngestionSection() {
     setIngestedArticle(null);
 
     try {
+      console.log('[v0] Starting ingestion for:', url.trim());
+      
       const response = await fetch('/api/ingest-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() })
       });
 
-      const data = await response.json();
+      console.log('[v0] Response status:', response.status);
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process article');
+      // Safely parse JSON response
+      let data;
+      try {
+        const text = await response.text();
+        console.log('[v0] Raw response length:', text.length);
+        
+        if (!text || text.trim().length === 0) {
+          throw new Error('Server returned empty response');
+        }
+        
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error('[v0] JSON parse error:', parseErr);
+        throw new Error('Server returned invalid response. Please try again.');
+      }
+
+      // Check for success flag or error
+      if (!data.success) {
+        throw new Error(data.error || 'Ingestion failed');
+      }
+
+      if (!data.article) {
+        throw new Error('No article data in response');
       }
 
       const article = data.article as IngestedArticle;
+      
+      console.log('[v0] Article received:', article.title?.substring(0, 50));
+      
       setIngestedArticle(article);
       
       // Populate editable fields
-      setEditTitle(article.title);
+      setEditTitle(article.title || '');
       setEditSubtitle(article.subtitle || '');
-      setEditExcerpt(article.excerpt);
-      setEditCategory(article.category);
-      setEditImageUrl(article.image.url);
-      setEditImageCredit(article.image.credit);
-      setEditContent(article.content);
+      setEditExcerpt(article.excerpt || '');
+      setEditCategory(article.category || 'Culture');
+      setEditImageUrl(article.image?.url || '');
+      setEditImageCredit(article.image?.credit || '');
+      setEditContent(article.content || []);
       
       setStatus('preview');
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      console.error('[v0] Ingestion error:', err);
+      setError(err.message || 'Something went wrong during ingestion');
       setStatus('error');
     }
   };
@@ -124,28 +151,41 @@ export default function AIIngestionSection() {
     setError(null);
 
     try {
+      console.log('[v0] Saving article as draft:', editTitle?.substring(0, 50));
+      
+      // Validate required fields
+      if (!editTitle?.trim()) {
+        throw new Error('Title is required');
+      }
+      
+      if (!editContent || editContent.length === 0) {
+        throw new Error('Article content is required');
+      }
+
       const articleData: Omit<Article, 'id' | 'createdAt' | 'updatedAt'> = {
         slug: articleService.generateSlug(editTitle),
-        title: editTitle,
-        subtitle: editSubtitle,
-        excerpt: editExcerpt,
+        title: editTitle.trim(),
+        subtitle: editSubtitle?.trim() || '',
+        excerpt: editExcerpt?.trim() || '',
         content: editContent,
-        category: editCategory,
+        category: editCategory || 'Culture',
         status: 'draft',
         featured: false,
         author: 'THE RESERVE Editorial',
         image: {
-          url: editImageUrl,
-          credit: editImageCredit,
+          url: editImageUrl || '',
+          credit: editImageCredit || '',
           source: ingestedArticle.sourceUrl
         },
         seo: {
-          metaTitle: editTitle,
-          metaDescription: editExcerpt
+          metaTitle: editTitle.trim(),
+          metaDescription: editExcerpt?.trim() || ''
         }
       };
 
       await articleService.createArticle(articleData);
+      
+      console.log('[v0] Article saved successfully');
       
       // Reset form
       setUrl('');
@@ -160,8 +200,9 @@ export default function AIIngestionSection() {
       setEditContent([]);
       
     } catch (err: any) {
+      console.error('[v0] Save error:', err);
       setError(err.message || 'Failed to save article');
-      setStatus('error');
+      setStatus('preview'); // Return to preview on save error, not 'error' state
     }
   };
 
@@ -279,23 +320,66 @@ export default function AIIngestionSection() {
         ) : null}
       </AnimatePresence>
 
-      {/* Error Display */}
+      {/* Error Display - Elegant Admin Error Card */}
       <AnimatePresence>
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="bg-red-500/10 border border-red-500/20 p-6 flex items-start gap-4"
+            className="bg-red-500/10 border border-red-500/20 p-6"
           >
-            <AlertCircle className="text-red-500 shrink-0" size={20} />
-            <div className="flex-1 space-y-1">
-              <p className="text-red-500 text-xs font-bold uppercase tracking-widest">Ingestion Failed</p>
-              <p className="text-zinc-400 text-xs">{error}</p>
+            <div className="flex items-start gap-4">
+              <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
+              <div className="flex-1 space-y-3">
+                <p className="text-red-500 text-xs font-bold uppercase tracking-widest">Ingestion Failed</p>
+                <p className="text-zinc-300 text-sm">{error}</p>
+                
+                {/* Contextual help based on error type */}
+                <div className="pt-2 border-t border-red-500/10">
+                  <p className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">Troubleshooting Tips:</p>
+                  <ul className="text-zinc-500 text-xs space-y-1">
+                    {error.toLowerCase().includes('fetch') || error.toLowerCase().includes('network') ? (
+                      <>
+                        <li>• Check if the URL is accessible in your browser</li>
+                        <li>• Some sites block automated requests</li>
+                        <li>• Try a different article from the same source</li>
+                      </>
+                    ) : error.toLowerCase().includes('content') || error.toLowerCase().includes('extract') ? (
+                      <>
+                        <li>• The article may be behind a paywall</li>
+                        <li>• Try an article with more text content</li>
+                        <li>• Some sites use JavaScript rendering that cannot be scraped</li>
+                      </>
+                    ) : error.toLowerCase().includes('ai') || error.toLowerCase().includes('gemini') ? (
+                      <>
+                        <li>• AI service may be temporarily unavailable</li>
+                        <li>• Try again in a few moments</li>
+                        <li>• Check if GEMINI_API_KEY is configured</li>
+                      </>
+                    ) : error.toLowerCase().includes('json') || error.toLowerCase().includes('response') || error.toLowerCase().includes('malformed') ? (
+                      <>
+                        <li>• AI returned an unexpected format</li>
+                        <li>• This is usually temporary - please try again</li>
+                        <li>• If it persists, try a different article</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• Try again with a different URL</li>
+                        <li>• Ensure the URL points to an article page</li>
+                        <li>• Contact support if the issue persists</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setError(null); setStatus('idle'); }} 
+                className="text-zinc-600 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <button onClick={() => setError(null)} className="text-zinc-600 hover:text-white">
-              <X size={16} />
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
