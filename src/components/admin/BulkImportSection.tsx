@@ -48,6 +48,54 @@ export default function BulkImportSection() {
   const [categories, setCategories] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI Generation Mode Local States
+  const [importMode, setImportMode] = useState<'manifest' | 'ai'>('manifest');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTitle, setAiTitle] = useState('');
+  const [aiCategory, setAiCategory] = useState('Culture');
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiSuccessMessage, setAiSuccessMessage] = useState<string | null>(null);
+  const [aiGeneratedArticle, setAiGeneratedArticle] = useState<any | null>(null);
+
+  const handleAiGeneration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiPrompt.trim()) return;
+    setGeneratingAi(true);
+    setError(null);
+    setAiSuccessMessage(null);
+    setAiGeneratedArticle(null);
+
+    try {
+      const response = await fetch('/api/ai/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: aiTitle.trim() || undefined,
+          category: aiCategory,
+          prompt: aiPrompt.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errMsg = await response.text();
+        throw new Error(errMsg || 'Server returned invalid response. Please try again.');
+      }
+
+      const article = await response.json();
+      setAiGeneratedArticle(article);
+      setAiSuccessMessage(`Narrative successfully generated and saved to draft archives! Output contains ${article.content?.length || 0} formatted section blocks.`);
+      setAiPrompt('');
+      setAiTitle('');
+    } catch (err: any) {
+      console.error("[AI Generation] Failed to generate draft:", err);
+      setError(err.message || 'Server returned invalid response. Please try again.');
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
   React.useEffect(() => {
     const fetchCats = async () => {
       const q = query(collection(db, 'categories'), orderBy('name', 'asc'));
@@ -223,35 +271,78 @@ export default function BulkImportSection() {
   };
 
   return (
-    <div className="space-y-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-        <div className="space-y-1">
+    <div className="space-y-12 font-sans text-white">
+      <div className="flex border-b border-white/5 pb-4">
+        <button
+          onClick={() => {
+            setImportMode('manifest');
+            setError(null);
+          }}
+          className={`px-6 py-2 text-xs uppercase tracking-widest transition-all ${
+            importMode === 'manifest' 
+              ? 'text-reserve-accent border-b border-reserve-accent font-bold' 
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          Spreadsheet Import (.csv / .xlsx)
+        </button>
+        <button
+          onClick={() => {
+            setImportMode('ai');
+            setError(null);
+          }}
+          className={`px-6 py-2 text-xs uppercase tracking-widest transition-all ${
+            importMode === 'ai' 
+              ? 'text-reserve-accent border-b border-reserve-accent font-bold' 
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          Gemini AI Ingestion Engine
+        </button>
+      </div>
+
+      {importMode === 'manifest' && (
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 animate-in fade-in duration-300">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="bg-reserve-accent/10 p-2 rounded-sm">
+                <Database className="text-reserve-accent" size={18} />
+              </div>
+              <h2 className="text-2xl font-serif text-white uppercase tracking-wider">Bulk Story Import</h2>
+            </div>
+            <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em]">Newsroom-scale content deployment system</p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv, .xlsx, .xls"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 border border-white/10 px-6 py-3 transition-all duration-300 group"
+            >
+              <Upload size={16} className="text-reserve-accent group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] uppercase tracking-widest font-bold">Select File (CSV/XLSX)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {importMode === 'ai' && (
+        <div className="space-y-1 animate-in fade-in duration-300">
           <div className="flex items-center gap-3">
             <div className="bg-reserve-accent/10 p-2 rounded-sm">
               <Database className="text-reserve-accent" size={18} />
             </div>
-            <h2 className="text-2xl font-serif text-white uppercase tracking-wider">Bulk Story Import</h2>
+            <h2 className="text-2xl font-serif text-white uppercase tracking-wider font-bold">AI Ingestion Engine</h2>
           </div>
-          <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em]">Newsroom-scale content deployment system</p>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-[0.2em]">Calibrated Gemini-Powered Story generator</p>
         </div>
-
-        <div className="flex items-center gap-4">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".csv, .xlsx, .xls"
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 border border-white/10 px-6 py-3 transition-all duration-300 group"
-          >
-            <Upload size={16} className="text-reserve-accent group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] uppercase tracking-widest font-bold">Select File (CSV/XLSX)</span>
-          </button>
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 p-6 flex items-start gap-4">
@@ -397,7 +488,7 @@ export default function BulkImportSection() {
         </div>
       )}
 
-      {!previewData.length && !summary && (
+      {importMode === 'manifest' && !previewData.length && !summary && (
         <div 
           onClick={() => fileInputRef.current?.click()}
           className="group border-2 border-dashed border-white/5 py-40 rounded-sm flex flex-col items-center justify-center gap-6 hover:border-reserve-accent/30 hover:bg-reserve-accent/[0.01] transition-all cursor-pointer"
@@ -423,6 +514,108 @@ export default function BulkImportSection() {
             <span className="text-[8px] uppercase tracking-widest text-zinc-700 border border-white/5 py-1 px-3">Excel Support</span>
             <span className="text-[8px] uppercase tracking-widest text-zinc-700 border border-white/5 py-1 px-3">Bulk Queue</span>
           </div>
+        </div>
+      )}
+
+      {importMode === 'ai' && (
+        <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl">
+          {aiSuccessMessage && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 flex items-start gap-4">
+              <CheckCircle2 className="text-emerald-500 shrink-0 animate-bounce" size={20} />
+              <div className="space-y-1">
+                <p className="text-emerald-500 text-xs font-bold uppercase tracking-widest">Generation Success</p>
+                <p className="text-zinc-400 text-xs leading-relaxed">{aiSuccessMessage}</p>
+                {aiGeneratedArticle && (
+                  <div className="mt-4 p-4 bg-black/60 border border-white/5 font-mono text-[9px] text-zinc-500 uppercase tracking-widest space-y-1 block">
+                    <p>Document ID: <span className="text-white">{aiGeneratedArticle.id}</span></p>
+                    <p>Slug Identifier: <span className="text-white">{aiGeneratedArticle.slug}</span></p>
+                    <p>Blocks Parsed: <span className="text-white">{aiGeneratedArticle.content?.length || 0}</span></p>
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={() => setAiSuccessMessage(null)} className="ml-auto text-zinc-600 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleAiGeneration} className="bg-zinc-950/50 border border-white/5 p-8 md:p-12 space-y-8">
+            <div className="space-y-2">
+              <h3 className="text-xs uppercase tracking-[0.3em] font-bold text-reserve-accent">AI Content Engine Specifications</h3>
+              <p className="text-zinc-500 text-[10px] uppercase leading-relaxed max-w-xl">
+                Enter your narrative parameters below. The Gemini model is calibrated to generate an editorial narrative broken into structured article blocks (headers, paragraphs, and pull-quotes) which will be automatically ingested as a draft.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="block text-[9px] uppercase tracking-widest font-bold text-zinc-400">Target Headline / Title (Optional)</label>
+                <input
+                  type="text"
+                  value={aiTitle}
+                  onChange={(e) => setAiTitle(e.target.value)}
+                  placeholder="e.g., The Silent Majesty of Kyoto Craft"
+                  className="w-full bg-black border border-white/10 focus:border-reserve-accent/50 text-white px-4 py-3 text-xs outline-none focus:ring-0 transition-colors uppercase tracking-widest"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[9px] uppercase tracking-widest font-bold text-zinc-400">Target Category</label>
+                <select
+                  value={aiCategory}
+                  onChange={(e) => setAiCategory(e.target.value)}
+                  className="w-full bg-black border border-white/10 focus:border-reserve-accent/50 text-white px-4 py-3 text-xs outline-none focus:ring-0 transition-colors uppercase tracking-widest"
+                >
+                  {categories.length > 0 ? (
+                    categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))
+                  ) : (
+                    ['Fashion', 'Business', 'Sports', 'Cinema', 'Culture', 'Luxury'].map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[9px] uppercase tracking-widest font-bold text-zinc-400">Concept Prompt & Directions (Required)</label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="e.g., A deep-dive article investigating the resurgence of local indigo-dyeing workshops in rural Japan, and how tech-forward apparel startups are integrating these ancient practices into minimalist urban streetwear."
+                rows={6}
+                required
+                className="w-full bg-black border border-white/10 focus:border-reserve-accent/50 text-white p-4 text-xs outline-none focus:ring-0 transition-colors tracking-wide leading-relaxed resize-none font-sans"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/5 pt-8">
+              <div className="space-y-1">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Model Pipeline</p>
+                <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">gemini-1.5-flash @ low temperature</p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={generatingAi || !aiPrompt.trim()}
+                className="flex items-center gap-3 bg-reserve-accent hover:bg-reserve-accent/90 disabled:opacity-50 text-black px-8 py-4 text-[10px] uppercase tracking-widest font-black transition-all hover:scale-105 disabled:scale-100"
+              >
+                {generatingAi ? (
+                  <>
+                    <Loader2 className="animate-spin" size={14} />
+                    <span>Engaging Generation Pipeline...</span>
+                  </>
+                ) : (
+                  <>
+                    <Database size={14} />
+                    <span>Generate & Ingest Narrative</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
