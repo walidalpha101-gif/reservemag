@@ -17,8 +17,7 @@ import {
   Video,
   Database,
   Layers,
-  Users,
-  Sparkles
+  Users
 } from 'lucide-react';
 import { useFirebase } from '../context/FirebaseContext';
 import { logout } from '../lib/firebase';
@@ -35,9 +34,8 @@ import VideoSection from './admin/VideoSection';
 import BulkImportSection from './admin/BulkImportSection';
 import CategorySection from './admin/CategorySection';
 import AuthorsSection from './admin/AuthorsSection';
-import AIIngestionSection from './admin/AIIngestionSection';
 
-type Tab = 'overview' | 'stories' | 'ai-ingestion' | 'bulk-import' | 'categories' | 'authors' | 'videos' | 'newsletter' | 'homepage' | 'settings' | 'leads';
+type Tab = 'overview' | 'stories' | 'bulk-import' | 'categories' | 'authors' | 'videos' | 'newsletter' | 'homepage' | 'settings' | 'leads';
 
 export default function AdminPanel() {
   const { user } = useFirebase();
@@ -52,7 +50,6 @@ export default function AdminPanel() {
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'stories', label: 'Stories', icon: FileText },
-    { id: 'ai-ingestion', label: 'AI Ingestion', icon: Sparkles },
     { id: 'bulk-import', label: 'Bulk Import', icon: Database },
     { id: 'categories', label: 'Categories', icon: Layers },
     { id: 'authors', label: 'Authors', icon: Users },
@@ -67,7 +64,6 @@ export default function AdminPanel() {
     switch (activeTab) {
       case 'overview': return <OverviewSection />;
       case 'stories': return <StoriesSection />;
-      case 'ai-ingestion': return <AIIngestionSection />;
       case 'bulk-import': return <BulkImportSection />;
       case 'categories': return <CategorySection />;
       case 'authors': return <AuthorsSection />;

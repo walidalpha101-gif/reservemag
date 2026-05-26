@@ -152,22 +152,3 @@ export interface VideoInterview {
   featured: boolean;
   createdAt: any;
 }
-
-// AI Ingestion Types
-export interface IngestedArticle {
-  title: string;
-  subtitle: string;
-  excerpt: string;
-  category: string;
-  content: ContentBlock[];
-  image: {
-    url: string;
-    credit: string;
-    source?: string;
-  };
-  sourceUrl: string;
-  sourceTitle: string;
-  sourceDomain: string;
-}
-
-export type IngestionStatus = 'idle' | 'fetching' | 'processing' | 'preview' | 'saving' | 'error';
