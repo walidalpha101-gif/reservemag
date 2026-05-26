@@ -30,57 +30,112 @@ async function startServer() {
   // JSON body parser for API routes
   app.use(express.json({ limit: '10mb' }));
 
-  // AI Article Ingestion Endpoint
+  // AI Article Ingestion Endpoint - Production-hardened
   app.post('/api/ingest-article', async (req, res) => {
+    // ALWAYS return JSON - wrap entire handler in try/catch
     try {
-      const { url } = req.body;
+      console.log('[Ingestion] Request received');
       
-      if (!url) {
-        return res.status(400).json({ error: 'URL is required' });
+      const { url } = req.body || {};
+      
+      if (!url || typeof url !== 'string') {
+        console.log('[Ingestion] Error: URL is required');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URL is required' 
+        });
       }
 
       // Validate URL format
       let parsedUrl: URL;
       try {
-        parsedUrl = new URL(url);
+        parsedUrl = new URL(url.trim());
       } catch {
-        return res.status(400).json({ error: 'Invalid URL format' });
+        console.log('[Ingestion] Error: Invalid URL format');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid URL format. Please enter a valid URL starting with http:// or https://' 
+        });
       }
 
       console.log(`[Ingestion] Starting extraction for: ${url}`);
 
-      // Fetch the article page
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-        }
-      });
-
-      if (!response.ok) {
-        return res.status(400).json({ error: `Failed to fetch URL: ${response.status} ${response.statusText}` });
+      // Fetch the article page with timeout
+      let fetchResponse: Response;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        
+        fetchResponse = await fetch(url.trim(), {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+          }
+        });
+        
+        clearTimeout(timeoutId);
+      } catch (fetchErr: any) {
+        console.error('[Ingestion] Fetch error:', fetchErr.message);
+        const errorMsg = fetchErr.name === 'AbortError' 
+          ? 'Request timed out. The source website took too long to respond.'
+          : `Failed to fetch URL: ${fetchErr.message || 'Network error'}`;
+        return res.status(400).json({ 
+          success: false, 
+          error: errorMsg 
+        });
       }
 
-      const html = await response.text();
+      if (!fetchResponse.ok) {
+        console.log(`[Ingestion] Fetch failed: ${fetchResponse.status}`);
+        return res.status(400).json({ 
+          success: false, 
+          error: `Failed to fetch URL: ${fetchResponse.status} ${fetchResponse.statusText}. The source may be blocking scraping.` 
+        });
+      }
+
+      let html: string;
+      try {
+        html = await fetchResponse.text();
+      } catch (textErr) {
+        console.error('[Ingestion] Failed to read response body');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Failed to read article content from source' 
+        });
+      }
+
+      if (!html || html.trim().length < 100) {
+        console.log('[Ingestion] Empty or minimal HTML received');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Source returned empty or invalid content' 
+        });
+      }
+
+      console.log(`[Ingestion] Fetched ${html.length} chars of HTML`);
+      
       const $ = cheerio.load(html);
 
       // Remove unwanted elements
       $('script, style, nav, header, footer, aside, .ad, .advertisement, .social-share, .comments, .related-posts, noscript, iframe').remove();
 
-      // Extract article metadata
-      const originalTitle = 
+      // Extract article metadata with fallbacks
+      const originalTitle = (
         $('meta[property="og:title"]').attr('content') ||
         $('meta[name="twitter:title"]').attr('content') ||
         $('h1').first().text() ||
         $('title').text() ||
-        '';
+        'Untitled Article'
+      ).trim().substring(0, 200);
 
-      const originalExcerpt = 
+      const originalExcerpt = (
         $('meta[property="og:description"]').attr('content') ||
         $('meta[name="description"]').attr('content') ||
         $('meta[name="twitter:description"]').attr('content') ||
-        '';
+        ''
+      ).trim().substring(0, 500);
 
       const originalImage = 
         $('meta[property="og:image"]').attr('content') ||
@@ -89,8 +144,17 @@ async function startServer() {
         $('main img').first().attr('src') ||
         '';
 
-      // Resolve relative image URLs
-      const resolvedImage = originalImage ? new URL(originalImage, url).href : '';
+      // Resolve relative image URLs safely
+      let resolvedImage = '';
+      if (originalImage) {
+        try {
+          resolvedImage = new URL(originalImage, url).href;
+        } catch {
+          resolvedImage = originalImage.startsWith('http') ? originalImage : '';
+        }
+      }
+
+      console.log(`[Ingestion] Extracted title: "${originalTitle.substring(0, 50)}..."`);
 
       // Extract article content
       const articleSelectors = [
@@ -128,7 +192,11 @@ async function startServer() {
       }
 
       if (!articleText || articleText.length < 100) {
-        return res.status(400).json({ error: 'Could not extract meaningful content from this URL' });
+        console.log('[Ingestion] Insufficient content extracted');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Could not extract meaningful content from this URL. The article may be behind a paywall or use JavaScript rendering.' 
+        });
       }
 
       console.log(`[Ingestion] Extracted ${articleText.length} chars of content`);
@@ -136,7 +204,11 @@ async function startServer() {
       // Initialize Gemini AI
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) {
-        return res.status(500).json({ error: 'Gemini API key not configured' });
+        console.error('[Ingestion] GEMINI_API_KEY not configured');
+        return res.status(500).json({ 
+          success: false, 
+          error: 'AI service not configured. Please add GEMINI_API_KEY to environment variables.' 
+        });
       }
 
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -157,7 +229,9 @@ Title: ${originalTitle}
 Content:
 ${articleText.substring(0, 8000)}
 
-RESPOND WITH VALID JSON ONLY (no markdown, no code blocks):
+IMPORTANT: You MUST respond with ONLY valid JSON. No markdown, no code blocks, no explanation text.
+The response must be parseable by JSON.parse() directly.
+
 {
   "title": "A compelling headline (50-80 chars, no quotes around the title)",
   "subtitle": "A one-line subheading that adds context (optional, 60-100 chars)",
@@ -170,52 +244,102 @@ RESPOND WITH VALID JSON ONLY (no markdown, no code blocks):
   ]
 }`;
 
-      const result = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: rewritePrompt,
-      });
-
-      const aiText = result.text?.trim() || '';
+      console.log('[Ingestion] Sending request to Gemini AI...');
       
-      // Parse AI response - handle potential markdown code blocks
-      let parsed;
+      let result;
       try {
-        // Remove markdown code block wrapper if present
-        let jsonText = aiText;
-        if (jsonText.startsWith('```json')) {
-          jsonText = jsonText.slice(7);
-        } else if (jsonText.startsWith('```')) {
-          jsonText = jsonText.slice(3);
-        }
-        if (jsonText.endsWith('```')) {
-          jsonText = jsonText.slice(0, -3);
-        }
-        parsed = JSON.parse(jsonText.trim());
-      } catch (parseError) {
-        console.error('[Ingestion] Failed to parse AI response:', aiText.substring(0, 500));
-        return res.status(500).json({ error: 'AI returned invalid response format' });
+        result = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: rewritePrompt,
+        });
+      } catch (aiErr: any) {
+        console.error('[Ingestion] Gemini API error:', aiErr.message);
+        return res.status(500).json({ 
+          success: false, 
+          error: `AI service error: ${aiErr.message || 'Failed to generate content'}` 
+        });
       }
 
-      // Convert paragraphs to ContentBlock format
-      const contentBlocks = (parsed.paragraphs || []).map((text: string, index: number) => ({
-        id: `block-${Date.now()}-${index}`,
-        type: 'paragraph',
-        text: text,
-        style: {
-          bold: false,
-          italic: false,
-          underline: false,
-          strikethrough: false,
-          fontSize: index === 0 ? 'large' : 'medium',
-          alignment: 'left'
+      // Validate AI response exists
+      const aiText = result?.text?.trim() || '';
+      
+      if (!aiText || aiText.length === 0) {
+        console.error('[Ingestion] Gemini returned empty response');
+        return res.status(500).json({ 
+          success: false, 
+          error: 'AI returned empty response. Please try again.' 
+        });
+      }
+
+      console.log(`[Ingestion] Gemini response received: ${aiText.length} chars`);
+      
+      // Parse AI response with robust cleanup
+      let parsed;
+      try {
+        // Remove markdown code block wrappers if present
+        let jsonText = aiText;
+        
+        // Handle ```json or ``` wrappers
+        jsonText = jsonText.replace(/^```json\s*/i, '');
+        jsonText = jsonText.replace(/^```\s*/i, '');
+        jsonText = jsonText.replace(/\s*```$/i, '');
+        jsonText = jsonText.trim();
+        
+        // Try to find JSON object in response if it has extra text
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonText = jsonMatch[0];
         }
-      }));
+        
+        parsed = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('[Ingestion] Failed to parse AI response. Raw text:', aiText.substring(0, 500));
+        return res.status(500).json({ 
+          success: false, 
+          error: 'AI returned malformed response. Please try again.' 
+        });
+      }
+
+      // Validate parsed structure
+      if (!parsed || typeof parsed !== 'object') {
+        console.error('[Ingestion] Parsed result is not an object');
+        return res.status(500).json({ 
+          success: false, 
+          error: 'AI returned invalid data structure. Please try again.' 
+        });
+      }
+
+      // Convert paragraphs to ContentBlock format with validation
+      const paragraphs = Array.isArray(parsed.paragraphs) ? parsed.paragraphs : [];
+      const contentBlocks = paragraphs
+        .filter((text: any) => typeof text === 'string' && text.trim().length > 0)
+        .map((text: string, index: number) => ({
+          id: `block-${Date.now()}-${index}`,
+          type: 'paragraph',
+          text: text.trim(),
+          style: {
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            fontSize: index === 0 ? 'large' : 'medium',
+            alignment: 'left'
+          }
+        }));
+
+      if (contentBlocks.length === 0) {
+        console.error('[Ingestion] No valid paragraphs in AI response');
+        return res.status(500).json({ 
+          success: false, 
+          error: 'AI did not generate any article content. Please try again.' 
+        });
+      }
 
       const ingestedArticle = {
-        title: parsed.title || originalTitle,
-        subtitle: parsed.subtitle || '',
-        excerpt: parsed.excerpt || originalExcerpt,
-        category: parsed.category || 'Culture',
+        title: (typeof parsed.title === 'string' && parsed.title.trim()) || originalTitle,
+        subtitle: (typeof parsed.subtitle === 'string' ? parsed.subtitle.trim() : ''),
+        excerpt: (typeof parsed.excerpt === 'string' && parsed.excerpt.trim()) || originalExcerpt,
+        category: (typeof parsed.category === 'string' && parsed.category.trim()) || 'Culture',
         content: contentBlocks,
         image: {
           url: resolvedImage,
@@ -235,9 +359,11 @@ RESPOND WITH VALID JSON ONLY (no markdown, no code blocks):
       });
 
     } catch (error: any) {
-      console.error('[Ingestion] Error:', error);
+      // CATCH-ALL: Ensure we ALWAYS return valid JSON
+      console.error('[Ingestion] Unexpected error:', error);
       return res.status(500).json({ 
-        error: error.message || 'Failed to process article' 
+        success: false, 
+        error: error?.message || 'An unexpected error occurred during ingestion' 
       });
     }
   });
