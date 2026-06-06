@@ -34,12 +34,26 @@ function Home() {
     const fetchArticles = async () => {
       setDbLoading(true);
       try {
-        const [data, homepageConfig] = await Promise.all([
-          articleService.getAllArticles(false), // Published only for homepage default
-          import('./services/settingsService').then(m => m.settingsService.getHomepageConfig())
-        ]);
+        const homepageConfig = await import('./services/settingsService').then(m => m.settingsService.getHomepageConfig());
         
-        setArticles(data || []);
+        const idsToFetch: string[] = [];
+        if (homepageConfig?.heroArticleId) idsToFetch.push(homepageConfig.heroArticleId);
+        if (homepageConfig?.featuredArticleIds?.length) {
+          idsToFetch.push(...homepageConfig.featuredArticleIds);
+        }
+
+        const [configuredArticles, latestArticles] = await Promise.all([
+          idsToFetch.length > 0 ? articleService.getArticlesByIds(idsToFetch) : Promise.resolve([]),
+          articleService.getPublishedArticles(50) // Cap the database payload
+        ]);
+
+        const combinedMap = new Map<string, Article>();
+        configuredArticles.forEach(a => combinedMap.set(a.id as string, a));
+        latestArticles.forEach(a => {
+          if (!combinedMap.has(a.id as string)) combinedMap.set(a.id as string, a);
+        });
+        
+        setArticles(Array.from(combinedMap.values()));
         setConfig(homepageConfig);
       } catch (error) {
         console.error("Home fetch error:", error);
