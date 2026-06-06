@@ -124,7 +124,7 @@ Schema requirements:
         });
       }
 
-      // Bypass articleService to fix the TypeScript error permanently
+      // DIRECT SLUG GENERATOR - IMMUNE TO TYPESCRIPT ERRORS
       const slugClean = titleClean
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
