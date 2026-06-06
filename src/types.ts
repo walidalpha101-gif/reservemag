@@ -1,7 +1,5 @@
 export type Category = string;
-
 export type ArticleStatus = 'draft' | 'published' | 'scheduled';
-
 export type ContentFontSize = 'small' | 'medium' | 'large' | 'xl';
 export type ContentAlignment = 'left' | 'center' | 'right' | 'justify';
 
@@ -82,8 +80,10 @@ export interface FooterLink {
 
 export interface SiteSettings {
   title: string;
+  browserTitle?: string;
   description?: string;
   logoUrl?: string;
+  faviconUrl?: string;
   ctaButton: {
     text: string;
     url: string;
