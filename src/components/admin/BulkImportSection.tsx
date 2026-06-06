@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, Sparkles, Database, X } from 'lucide-react';
+import { Loader2, Sparkles, Database, X, CheckCircle2 } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -26,8 +26,9 @@ export default function BulkImportSection() {
       if (!apiKey) throw new Error("API Key not found. Please check Vercel settings.");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Use the 'latest' suffix to resolve the 404 model path error
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      
+      // Using the current stable flash model
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
       const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
       Return ONLY a JSON object: 
@@ -59,7 +60,7 @@ export default function BulkImportSection() {
       setAiTitle('');
     } catch (err: any) {
       console.error("AI Engine Error:", err);
-      setError(err.message || 'Generation failed.');
+      setError('Generation failed. Ensure your API key is valid for gemini-2.5-flash.');
     } finally {
       setGeneratingAi(false);
     }
