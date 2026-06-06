@@ -43,7 +43,7 @@ export default function BulkImportSection() {
 
       const articleData = JSON.parse(response.text());
 
-      // Bypass articleService to fix the TypeScript error permanently
+      // BYPASSING SERVICE COMPLETELY TO FIX TYPESCRIPT
       const safeSlug = (articleData.title || 'untitled')
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
