@@ -10,7 +10,8 @@ import {
   orderBy, 
   limit, 
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  documentId
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Article } from '../types';
@@ -35,7 +36,6 @@ export const articleService = {
       const batch = writeBatch(db);
       
       for (const article of demoArticles) {
-        // Use slug as document ID to prevent duplicates if seeding runs multiple times
         const docRef = doc(db, COLLECTION_NAME, article.slug);
         batch.set(docRef, sanitizeForFirestore({
           ...article,
@@ -81,8 +81,37 @@ export const articleService = {
       }
 
       const querySnapshot = await getDocs(q);
-      
-      // Removed auto-seed from here to centralize in ensureContentExists
+      return querySnapshot.docs.map(doc => normalizeArticle({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      return [];
+    }
+  },
+
+  async getPublishedArticles(limitCount: number = 50): Promise<Article[]> {
+    try {
+      const q = query(
+        collection(db, COLLECTION_NAME),
+        where('status', '==', 'published'),
+        orderBy('updatedAt', 'desc'),
+        limit(limitCount)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => normalizeArticle({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      return [];
+    }
+  },
+
+  async getArticlesByIds(ids: string[]): Promise<Article[]> {
+    if (!ids || ids.length === 0) return [];
+    try {
+      const q = query(
+        collection(db, COLLECTION_NAME),
+        where(documentId(), 'in', ids.slice(0, 10))
+      );
+      const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => normalizeArticle({ id: doc.id, ...doc.data() }));
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
