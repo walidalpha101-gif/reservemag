@@ -3,42 +3,24 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Globe, 
   Link as LinkIcon, 
-  Plus, 
-  Trash2, 
   Save, 
   Info, 
   MousePointerClick, 
   Layout, 
-  GripVertical
+  Image as ImageIcon,
+  Loader2
 } from 'lucide-react';
-import { SiteSettings, FooterLink } from '../../types';
+import { SiteSettings } from '../../types';
 import { settingsService } from '../../services/settingsService';
-
+import { mediaService } from '../../services/mediaService';
+import { SITE_SETTINGS_DEFAULTS } from '../../lib/schemas';
 import ImageUploadForm from './ImageUploadForm';
 
 export default function SettingsSection() {
-  const [settings, setSettings] = useState<SiteSettings>({
-    title: 'THE RESERVE',
-    description: 'The definitive platform for the visionaries of tomorrow.',
-    logoUrl: '',
-    ctaButton: {
-      text: 'Get Featured',
-      url: '/get-featured'
-    },
-    socialUrls: {
-      facebook: '',
-      instagram: ''
-    },
-    footerUrls: {
-      'Navigation': '/',
-      'Digital Archive': '/archive',
-      'Editorial Policy': '/editorial-policy',
-      'Private Ledger': '/admin',
-      'Editorial Board': '/editorial-board',
-      'Advertising': '/advertising',
-      'Legal': '/legal'
-    }
-  });
+  const [settings, setSettings] = useState<SiteSettings>(SITE_SETTINGS_DEFAULTS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
 
   const FOOTER_LABELS = [
     'Navigation',
@@ -50,9 +32,6 @@ export default function SettingsSection() {
     'Legal'
   ];
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
   useEffect(() => {
     loadSettings();
   }, []);
@@ -61,12 +40,7 @@ export default function SettingsSection() {
     setLoading(true);
     const data = await settingsService.getSiteSettings();
     if (data) {
-      // Ensure all hardcoded labels exist in current settings
-      const mergedFooter = { ...settings.footerUrls, ...(data.footerUrls || {}) };
-      setSettings({
-        ...data,
-        footerUrls: mergedFooter
-      });
+      setSettings(data);
     }
     setLoading(false);
   };
@@ -76,7 +50,7 @@ export default function SettingsSection() {
     setSaving(true);
     try {
       await settingsService.updateSiteSettings(settings);
-      alert('Archive settings updated.');
+      alert('Registry settings updated and synced globally.');
     } finally {
       setSaving(false);
     }
@@ -96,6 +70,21 @@ export default function SettingsSection() {
     });
   };
 
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingFavicon(true);
+    try {
+      const url = await mediaService.uploadSettingsImage(file);
+      setSettings({ ...settings, faviconUrl: url });
+    } catch (error) {
+      console.error("Favicon Upload Failed:", error);
+    } finally {
+      setUploadingFavicon(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-[400px] flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-reserve-accent border-t-transparent rounded-full animate-spin" />
@@ -104,11 +93,19 @@ export default function SettingsSection() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-white/5 pb-8">
         <div>
           <h2 className="text-xl font-serif">Registry Settings</h2>
           <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Global site parameters and UI configuration</p>
         </div>
+        <button 
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-white text-black px-10 py-3 text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-reserve-accent transition-all flex items-center gap-2 active:scale-95"
+        >
+          {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+          {saving ? 'UPDATING...' : 'COMMIT ALL CHANGES'}
+        </button>
       </div>
 
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-2 gap-12 pb-20">
@@ -126,6 +123,7 @@ export default function SettingsSection() {
                 storagePath="settings"
                 aspectRatio="aspect-square max-w-[200px]"
               />
+              
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Publication Title</label>
                 <input 
@@ -135,13 +133,32 @@ export default function SettingsSection() {
                   className="w-full bg-black border border-white/10 p-4 text-sm focus:outline-none focus:border-reserve-accent"
                 />
               </div>
+
               <div className="space-y-2">
-                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Site Description</label>
-                <textarea 
-                  value={settings.description}
-                  onChange={(e) => setSettings({ ...settings, description: e.target.value })}
-                  className="w-full bg-black border border-white/10 p-4 text-sm h-24 focus:outline-none focus:border-reserve-accent resize-none"
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block">Browser Tab Title (SEO)</label>
+                <input 
+                  type="text"
+                  value={settings.browserTitle || ''}
+                  onChange={(e) => setSettings({ ...settings, browserTitle: e.target.value })}
+                  className="w-full bg-black border border-white/10 p-4 text-sm focus:outline-none focus:border-reserve-accent"
                 />
+              </div>
+
+              <div className="space-y-6">
+                <label className="text-[10px] uppercase tracking-widest text-zinc-500">Site Favicon</label>
+                <div className="flex items-center gap-8">
+                  {settings.faviconUrl ? (
+                    <img src={settings.faviconUrl} alt="Favicon" className="w-12 h-12 rounded-sm bg-white/5 object-contain border border-white/10 p-2" />
+                  ) : (
+                    <div className="w-12 h-12 bg-white/5 border border-white/10 flex items-center justify-center text-zinc-600">
+                      <ImageIcon size={20} />
+                    </div>
+                  )}
+                  <label className="px-6 py-2 border border-white/10 text-[9px] uppercase tracking-widest cursor-pointer hover:bg-white/5 transition-colors">
+                    {uploadingFavicon ? '...' : 'Upload Icon'}
+                    <input type="file" className="hidden" accept=".ico,.png,.svg" onChange={handleFaviconUpload} disabled={uploadingFavicon} />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -217,7 +234,6 @@ export default function SettingsSection() {
               <h3 className="text-[11px] uppercase tracking-[0.3em] font-bold text-reserve-accent flex items-center gap-3">
                 <Layout size={14} /> Footer Registry (URL Edit)
               </h3>
-              <span className="text-[8px] uppercase tracking-widest text-zinc-600">Labels are fixed</span>
             </div>
             
             <div className="grid grid-cols-1 gap-4">
@@ -247,13 +263,6 @@ export default function SettingsSection() {
              <p className="text-xs text-zinc-400 leading-relaxed">
                Structure is enforced. Social icons are limited to Facebook and Instagram. Footer labels are immutable to preserve layout hierarchy.
              </p>
-             <button 
-                type="submit"
-                disabled={saving}
-                className="w-full bg-white text-black py-4 text-[11px] uppercase tracking-[0.2em] font-bold hover:bg-reserve-accent transition-all active:scale-95 mt-4"
-             >
-                {saving ? 'UPDATING SYSTEM...' : 'COMMIT ALL CHANGES'}
-             </button>
           </div>
         </div>
       </form>
