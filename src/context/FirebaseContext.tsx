@@ -28,19 +28,17 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        const settings = await settingsService.getSiteSettings();
-        setSiteSettings(settings);
-      } catch (err) {
-        console.error("Failed to initialize site data/settings:", err);
-      }
-    };
-    initializeData();
+    // Real-Time Listener: This forces the Navbar/Footer to update the second you hit Save in the Admin Panel
+    const unsubscribeSettings = settingsService.subscribeToSiteSettings((settings) => {
+      setSiteSettings(settings);
+    });
+
+    // Cleanup the listener when the app unmounts
+    return () => unsubscribeSettings();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUser(user);
       if (user && user.email === 'walid.alpha101@gmail.com') {
         setIsAdmin(true);
@@ -50,7 +48,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   return (
