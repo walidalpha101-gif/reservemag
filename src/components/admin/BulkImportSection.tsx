@@ -1,68 +1,93 @@
 import React, { useState } from 'react';
-import { Loader2, Sparkles, Database } from 'lucide-react';
+import { Loader2, Sparkles, Database, X, CheckCircle2 } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { articleService } from '../../services/articleService';
 
 export default function BulkImportSection() {
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTitle, setAiTitle] = useState('');
+  const [aiCategory, setAiCategory] = useState('Culture');
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aiSuccessMessage, setAiSuccessMessage] = useState<string | null>(null);
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  const handleAiGeneration = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setStatus(null);
+    if (!aiPrompt.trim()) return;
+    
+    setGeneratingAi(true);
+    setError(null);
+    setAiSuccessMessage(null);
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key missing in Vercel settings.");
+      if (!apiKey) throw new Error("API Key not found. Please check Vercel settings.");
 
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const fullPrompt = `Generate a magazine article about "${prompt}". Return ONLY JSON: {"title": "...", "excerpt": "...", "content": [{"id": "1", "type": "paragraph", "text": "...", "style": {"bold": false, "italic": false, "underline": false, "fontSize": "medium", "alignment": "left"}}], "category": "Culture"}`;
-      
-      const result = await model.generateContent(fullPrompt);
-      const data = JSON.parse(result.response.text().replace(/```json|```/g, ''));
+      const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
+      Return ONLY a JSON object: 
+      {
+        "title": "${aiTitle || 'Untitled'}",
+        "excerpt": "A short engaging summary.",
+        "content": [{"id": "1", "type": "paragraph", "text": "...", "style": {"bold": false, "italic": false, "underline": false, "fontSize": "medium", "alignment": "left"}}],
+        "category": "${aiCategory}"
+      }`;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const cleanJson = text.replace(/```json|```/g, '').trim();
+      const articleData = JSON.parse(cleanJson);
 
       await addDoc(collection(db, 'articles'), {
-        ...data,
-        slug: articleService.generateSlug(data.title),
+        ...articleData,
+        slug: articleService.generateSlug(articleData.title),
         status: 'draft',
         featured: false,
-        author: 'AI Engine',
+        author: 'AI Editorial',
         image: { url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab', credit: 'AI' },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
-      setStatus('Success: Story ingested to drafts.');
+      setAiSuccessMessage(`Successfully saved: ${articleData.title}`);
+      setAiPrompt('');
+      setAiTitle('');
     } catch (err: any) {
-      setStatus(`Error: ${err.message}`);
+      console.error("AI Engine Error:", err);
+      setError(err.message || 'Generation failed.');
     } finally {
-      setLoading(false);
+      setGeneratingAi(false);
     }
   };
 
   return (
-    <div className="p-8 space-y-8 bg-zinc-900/30 border border-white/5">
-      <h2 className="text-xl font-serif">AI Narrative Ingestion</h2>
-      <form onSubmit={handleGenerate} className="space-y-4">
-        <textarea 
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+    <div className="space-y-8 bg-zinc-900/30 p-8 border border-white/5">
+      <h2 className="text-xl font-serif">AI Content Engine</h2>
+      <form onSubmit={handleAiGeneration} className="space-y-4">
+        <input 
           className="w-full bg-black border border-white/10 p-4 text-sm"
-          placeholder="Enter article topic..."
+          placeholder="Title"
+          value={aiTitle}
+          onChange={(e) => setAiTitle(e.target.value)}
+        />
+        <textarea 
+          className="w-full bg-black border border-white/10 p-4 text-sm"
+          placeholder="Prompt..."
+          value={aiPrompt}
+          onChange={(e) => setAiPrompt(e.target.value)}
           rows={4}
         />
-        <button disabled={loading} className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-          {loading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
-          Generate & Ingest
+        <button disabled={generatingAi} className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+          {generatingAi ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
+          {generatingAi ? 'Generating...' : 'Generate & Save'}
         </button>
       </form>
-      {status && <p className="text-[10px] text-zinc-500 uppercase">{status}</p>}
+      {error && <p className="text-rose-500 text-[10px]">{error}</p>}
+      {aiSuccessMessage && <p className="text-emerald-500 text-[10px]">{aiSuccessMessage}</p>}
     </div>
   );
 }
