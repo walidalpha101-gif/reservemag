@@ -6,7 +6,7 @@ import cors from 'cors';
 // Firebase imports for server side
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import crypto from 'crypto';
 
 const isProd = process.env.NODE_ENV === 'production' || 
@@ -19,7 +19,7 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
-  console.log("[Server] GEMINI_API_KEY Configured:", !!process.env.GEMINI_API_KEY);
+  console.log("[Server] GEMINI_API_KEY Configured:", !!process.env.GEMINI_API_KEY || !!process.env.VITE_GEMINI_API_KEY);
 
   console.log(`[Server] Starting... | NODE_ENV: ${process.env.NODE_ENV} | isProd: ${isProd} | PORT: ${PORT}`);
 
@@ -38,14 +38,14 @@ async function startServer() {
       return res.status(400).send("Prompt is required for draft generation.");
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY && !process.env.VITE_GEMINI_API_KEY) {
       console.error("[AI Ingestion] Error: GEMINI_API_KEY is not defined in backend process.env.");
       return res.status(500).send("Gemini API key is not configured on the server.");
     }
 
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // Modern SDK Initialization
+      const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '' });
 
       const finalTopicPrompt = `You are an expert editorial writer for The Reserve Magazine, a luxury editorial publication focused on Asian fashion, culture, and high-end lifestyle.
 Generate a highly polished, deep, and beautifully stylized magazine feature article based on the following user input prompt: "${prompt}".
@@ -78,14 +78,24 @@ Schema requirements:
 }`;
 
       console.log("[AI Ingestion] Calling Gemini API...");
-      const genResponse = await model.generateContent(finalTopicPrompt);
+      
+      // Using modern model and structured output format
+      const genResponse = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [{ role: "user", parts: [{ text: finalTopicPrompt }] }],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
 
-      if (!genResponse || !genResponse.response) {
+      if (!genResponse) {
         console.error("[AI Ingestion] Error: Gemini returned an empty response object");
         throw new Error("Empty response object from Gemini.");
       }
 
-      const responseText = genResponse.response.text();
+      // Modern SDK extracts text directly
+      const responseText = genResponse.text();
+      
       if (!responseText) {
         console.error("[AI Ingestion] Error: Gemini response text is empty or undefined");
         throw new Error("Generative draft output is empty.");
@@ -333,7 +343,6 @@ Schema requirements:
         .substring(0, 160);
 
       const metaTags = `
-  <!-- SSR_INJECTED_METADATA -->
   <title>${title} | THE RESERVE</title>
   <meta name="description" content="${cleanDescription.replace(/"/g, '&quot;')}" />
   <meta property="og:title" content="${title.replace(/"/g, '&quot;')}" />
@@ -405,5 +414,3 @@ startServer().catch(err => {
   console.error("[CRITICAL] Startup failed:", err);
   process.exit(1);
 });
-
-
