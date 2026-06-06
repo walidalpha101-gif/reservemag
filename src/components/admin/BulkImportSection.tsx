@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, Sparkles, Database, X, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, X, CheckCircle2 } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -27,8 +27,8 @@ export default function BulkImportSection() {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Using the current stable flash model
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      // Using the current stable frontier model for agentic tasks
+      const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
 
       const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
       Return ONLY a JSON object: 
@@ -60,7 +60,7 @@ export default function BulkImportSection() {
       setAiTitle('');
     } catch (err: any) {
       console.error("AI Engine Error:", err);
-      setError('Generation failed. Ensure your API key is valid for gemini-2.5-flash.');
+      setError('Generation failed. Ensure your API key is valid for gemini-3.5-flash.');
     } finally {
       setGeneratingAi(false);
     }
@@ -68,7 +68,7 @@ export default function BulkImportSection() {
 
   return (
     <div className="space-y-8 bg-zinc-900/30 p-8 border border-white/5">
-      <h2 className="text-xl font-serif">AI Content Engine</h2>
+      <h2 className="text-xl font-serif">AI Content Engine (Powered by Gemini 3.5 Flash)</h2>
       <form onSubmit={handleAiGeneration} className="space-y-4">
         <input 
           className="w-full bg-black border border-white/10 p-4 text-sm focus:border-reserve-accent outline-none"
