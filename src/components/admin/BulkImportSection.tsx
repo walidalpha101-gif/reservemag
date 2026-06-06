@@ -46,7 +46,6 @@ export default function BulkImportSection() {
 
       await addDoc(collection(db, 'articles'), {
         ...articleData,
-        // Fixed: removed parentheses because generateSlug is a getter property
         slug: articleService.generateSlug,
         status: 'draft',
         featured: false,
