@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import FeaturedStrip from './components/FeaturedStrip';
@@ -25,6 +26,20 @@ function ScrollToTop() {
   return null;
 }
 
+function GlobalMeta() {
+  const { siteSettings } = useFirebase();
+  if (!siteSettings) return null;
+  
+  return (
+    <Helmet>
+      <title>{siteSettings.browserTitle || siteSettings.title}</title>
+      {siteSettings.faviconUrl && (
+        <link rel="icon" type="image/x-icon" href={siteSettings.faviconUrl} />
+      )}
+    </Helmet>
+  );
+}
+
 function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
@@ -44,7 +59,7 @@ function Home() {
 
         const [configuredArticles, latestArticles] = await Promise.all([
           idsToFetch.length > 0 ? articleService.getArticlesByIds(idsToFetch) : Promise.resolve([]),
-          articleService.getPublishedArticles(50) // Cap the database payload
+          articleService.getPublishedArticles(50) 
         ]);
 
         const combinedMap = new Map<string, Article>();
@@ -129,13 +144,11 @@ function Home() {
   return (
     <div className="bg-reserve-bg text-reserve-text overflow-x-hidden selection:bg-reserve-accent selection:text-reserve-bg">
       <Navbar />
-      
       <main>
         {featuredHero && <Hero article={featuredHero} />}
         <FeaturedStrip articles={featuredStrip} />
         <EditorialGrid articles={gridArticles} />
         <VideoSection />
-
         <div className="space-y-0">
           {categorizedArticles.map((cat) => (
             <CategorySection 
@@ -145,10 +158,8 @@ function Home() {
             />
           ))}
         </div>
-
         <Newsletter />
       </main>
-
       <Footer />
     </div>
   );
@@ -171,6 +182,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <FirebaseProvider>
+      <GlobalMeta />
       <Router>
         <ScrollToTop />
         <Routes>
