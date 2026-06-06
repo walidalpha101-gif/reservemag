@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 
 import { SiteSettings } from '../types';
 import { settingsService } from '../services/settingsService';
@@ -31,7 +30,6 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // Fetch settings
         const settings = await settingsService.getSiteSettings();
         setSiteSettings(settings);
       } catch (err) {
@@ -42,24 +40,10 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
-      if (user) {
-        // Check if user is admin
-        try {
-          // Absolute priority for the owner's Google account
-          if (user.email === 'walid.alpha101@gmail.com') {
-            setIsAdmin(true);
-            setLoading(false);
-            return;
-          }
-
-          const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-          setIsAdmin(adminDoc.exists());
-        } catch (error) {
-          console.error("Error checking admin status:", error);
-          setIsAdmin(user.email === 'walid.alpha101@gmail.com');
-        }
+      if (user && user.email === 'walid.alpha101@gmail.com') {
+        setIsAdmin(true);
       } else {
         setIsAdmin(false);
       }
