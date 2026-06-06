@@ -41,9 +41,9 @@ export default function BulkImportSection() {
         config: { responseMimeType: "application/json" }
       });
 
-      const articleData = JSON.parse(response.text());
+      // EXACT FIX: response.text has NO parentheses in the modern SDK!
+      const articleData = JSON.parse(response.text);
 
-      // BYPASSING SERVICE COMPLETELY TO FIX TYPESCRIPT
       const safeSlug = (articleData.title || 'untitled')
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
