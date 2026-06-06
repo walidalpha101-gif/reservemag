@@ -25,7 +25,6 @@ export default function BulkImportSection() {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing in Vercel settings.");
 
-      // Modern SDK Initialization
       const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
@@ -47,7 +46,8 @@ export default function BulkImportSection() {
 
       await addDoc(collection(db, 'articles'), {
         ...articleData,
-        slug: articleService.generateSlug(articleData.title),
+        // Fixed: removed parentheses because generateSlug is a getter property
+        slug: articleService.generateSlug,
         status: 'draft',
         featured: false,
         author: 'AI Editorial',
