@@ -5,7 +5,6 @@ import { auth, db } from '../lib/firebase';
 
 import { SiteSettings } from '../types';
 import { settingsService } from '../services/settingsService';
-import { articleService } from '../services/articleService';
 
 interface FirebaseContextType {
   user: User | null;
@@ -32,9 +31,6 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // Ensure site content exists
-        await articleService.ensureContentExists();
-        
         // Fetch settings
         const settings = await settingsService.getSiteSettings();
         setSiteSettings(settings);
