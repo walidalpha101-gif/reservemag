@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, Sparkles, Database, X, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, Database, X } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -26,7 +26,8 @@ export default function BulkImportSection() {
       if (!apiKey) throw new Error("API Key not found. Please check Vercel settings.");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // Use the 'latest' suffix to resolve the 404 model path error
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
       const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
       Return ONLY a JSON object: 
@@ -69,25 +70,37 @@ export default function BulkImportSection() {
       <h2 className="text-xl font-serif">AI Content Engine</h2>
       <form onSubmit={handleAiGeneration} className="space-y-4">
         <input 
-          className="w-full bg-black border border-white/10 p-4 text-sm"
-          placeholder="Title"
+          className="w-full bg-black border border-white/10 p-4 text-sm focus:border-reserve-accent outline-none"
+          placeholder="Article Title (Optional)"
           value={aiTitle}
           onChange={(e) => setAiTitle(e.target.value)}
         />
         <textarea 
-          className="w-full bg-black border border-white/10 p-4 text-sm"
-          placeholder="Prompt..."
+          className="w-full bg-black border border-white/10 p-4 text-sm focus:border-reserve-accent outline-none"
+          placeholder="Enter article topic or prompt..."
           value={aiPrompt}
           onChange={(e) => setAiPrompt(e.target.value)}
           rows={4}
         />
-        <button disabled={generatingAi} className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+        <button 
+          disabled={generatingAi} 
+          className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-reserve-accent transition-all disabled:opacity-50"
+        >
           {generatingAi ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
           {generatingAi ? 'Generating...' : 'Generate & Save'}
         </button>
       </form>
-      {error && <p className="text-rose-500 text-[10px]">{error}</p>}
-      {aiSuccessMessage && <p className="text-emerald-500 text-[10px]">{aiSuccessMessage}</p>}
+      
+      {error && (
+        <div className="flex items-center gap-2 text-rose-500 text-[10px]">
+           <X size={12} /> {error}
+        </div>
+      )}
+      {aiSuccessMessage && (
+        <div className="flex items-center gap-2 text-emerald-500 text-[10px]">
+           <CheckCircle2 size={12} /> {aiSuccessMessage}
+        </div>
+      )}
     </div>
   );
 }
