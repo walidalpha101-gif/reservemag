@@ -3,7 +3,6 @@ import { Loader2, Sparkles, X, CheckCircle2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { articleService } from '../../services/articleService';
 
 export default function BulkImportSection() {
   const [aiPrompt, setAiPrompt] = useState('');
@@ -44,9 +43,16 @@ export default function BulkImportSection() {
 
       const articleData = JSON.parse(response.text());
 
+      // Bypass articleService to fix the TypeScript error permanently
+      const safeSlug = (articleData.title || 'untitled')
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
+
       await addDoc(collection(db, 'articles'), {
         ...articleData,
-        slug: articleService.generateSlug,
+        slug: safeSlug,
         status: 'draft',
         featured: false,
         author: 'AI Editorial',
