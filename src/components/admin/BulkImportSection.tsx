@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Loader2, Sparkles, X, CheckCircle2 } from 'lucide-react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { articleService } from '../../services/articleService';
@@ -23,13 +23,11 @@ export default function BulkImportSection() {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found. Please check Vercel settings.");
+      if (!apiKey) throw new Error("API Key missing in Vercel settings.");
 
-      const genAI = new GoogleGenerativeAI(apiKey);
+      // Modern SDK Initialization
+      const ai = new GoogleGenAI({ apiKey });
       
-      // Using the current stable frontier model for agentic tasks
-      const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
-
       const prompt = `You are a professional magazine editor. Generate a story about: "${aiPrompt}". 
       Return ONLY a JSON object: 
       {
@@ -39,10 +37,13 @@ export default function BulkImportSection() {
         "category": "${aiCategory}"
       }`;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const articleData = JSON.parse(cleanJson);
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: { responseMimeType: "application/json" }
+      });
+
+      const articleData = JSON.parse(response.text());
 
       await addDoc(collection(db, 'articles'), {
         ...articleData,
@@ -60,7 +61,7 @@ export default function BulkImportSection() {
       setAiTitle('');
     } catch (err: any) {
       console.error("AI Engine Error:", err);
-      setError('Generation failed. Ensure your API key is valid for gemini-3.5-flash.');
+      setError('Generation failed. Ensure API key is valid.');
     } finally {
       setGeneratingAi(false);
     }
@@ -68,7 +69,7 @@ export default function BulkImportSection() {
 
   return (
     <div className="space-y-8 bg-zinc-900/30 p-8 border border-white/5">
-      <h2 className="text-xl font-serif">AI Content Engine (Powered by Gemini 3.5 Flash)</h2>
+      <h2 className="text-xl font-serif">AI Content Engine (Gemini 3.5)</h2>
       <form onSubmit={handleAiGeneration} className="space-y-4">
         <input 
           className="w-full bg-black border border-white/10 p-4 text-sm focus:border-reserve-accent outline-none"
@@ -78,30 +79,18 @@ export default function BulkImportSection() {
         />
         <textarea 
           className="w-full bg-black border border-white/10 p-4 text-sm focus:border-reserve-accent outline-none"
-          placeholder="Enter article topic or prompt..."
+          placeholder="Enter article topic..."
           value={aiPrompt}
           onChange={(e) => setAiPrompt(e.target.value)}
           rows={4}
         />
-        <button 
-          disabled={generatingAi} 
-          className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-reserve-accent transition-all disabled:opacity-50"
-        >
+        <button disabled={generatingAi} className="px-8 py-3 bg-white text-black text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-reserve-accent transition-all disabled:opacity-50">
           {generatingAi ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
           {generatingAi ? 'Generating...' : 'Generate & Save'}
         </button>
       </form>
-      
-      {error && (
-        <div className="flex items-center gap-2 text-rose-500 text-[10px]">
-           <X size={12} /> {error}
-        </div>
-      )}
-      {aiSuccessMessage && (
-        <div className="flex items-center gap-2 text-emerald-500 text-[10px]">
-           <CheckCircle2 size={12} /> {aiSuccessMessage}
-        </div>
-      )}
+      {error && <div className="flex items-center gap-2 text-rose-500 text-[10px]"><X size={12} /> {error}</div>}
+      {aiSuccessMessage && <div className="flex items-center gap-2 text-emerald-500 text-[10px]"><CheckCircle2 size={12} /> {aiSuccessMessage}</div>}
     </div>
   );
 }
