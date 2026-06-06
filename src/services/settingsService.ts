@@ -2,7 +2,9 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  onSnapshot,
+  Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SiteSettings, HomepageConfig } from '../types';
@@ -27,6 +29,20 @@ export const settingsService = {
       handleFirestoreError(error, OperationType.GET, `${SETTINGS_COLLECTION}/${SITE_DOC}`);
       return null;
     }
+  },
+
+  // NEW: Real-time listener for global site settings
+  subscribeToSiteSettings(callback: (settings: SiteSettings) => void): Unsubscribe {
+    const docRef = doc(db, SETTINGS_COLLECTION, SITE_DOC);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(normalizeSettings(docSnap.data()));
+      } else {
+        callback(normalizeSettings({}));
+      }
+    }, (error) => {
+      console.error("Error listening to site settings:", error);
+    });
   },
 
   async updateSiteSettings(settings: SiteSettings) {
