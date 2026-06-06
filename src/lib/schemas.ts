@@ -28,6 +28,8 @@ export const ARTICLE_DEFAULTS: Article = {
 
 export const SITE_SETTINGS_DEFAULTS: SiteSettings = {
   title: 'THE RESERVE',
+  browserTitle: 'THE RESERVE | Asia\'s Quiet Renaissance',
+  faviconUrl: '/favicon.ico',
   description: 'The definitive platform for the visionaries of tomorrow.',
   logoUrl: '',
   ctaButton: {
@@ -73,6 +75,8 @@ export const normalizeSettings = (data: any): SiteSettings => {
   return {
     ...SITE_SETTINGS_DEFAULTS,
     ...data,
+    browserTitle: data.browserTitle || data.title || SITE_SETTINGS_DEFAULTS.browserTitle,
+    faviconUrl: data.faviconUrl || SITE_SETTINGS_DEFAULTS.faviconUrl,
     ctaButton: {
       ...SITE_SETTINGS_DEFAULTS.ctaButton,
       ...(data.ctaButton || {})
@@ -100,8 +104,7 @@ export const sanitizeForFirestore = (data: any): any => {
     if (Array.isArray(value)) {
       result[key] = value.map(item => (typeof item === 'object' && item !== null) ? sanitizeForFirestore(item) : item);
     } else if (typeof value === 'object' && !(value instanceof Date)) {
-      // Handle Firebase timestamps or other complex types if needed, otherwise recurse
-      if (value.toDate) { // Is a Firestore Timestamp
+      if (value.toDate) {
         result[key] = value;
       } else {
         result[key] = sanitizeForFirestore(value);
