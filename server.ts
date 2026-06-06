@@ -77,7 +77,8 @@ Schema requirements:
 
       if (!genResponse) throw new Error("Empty response object from Gemini.");
 
-      const responseText = genResponse.text();
+      // EXACT FIX: response.text has NO parentheses in the modern SDK!
+      const responseText = genResponse.text;
       if (!responseText) throw new Error("Generative draft output is empty.");
 
       let cleanText = responseText.trim();
@@ -124,7 +125,6 @@ Schema requirements:
         });
       }
 
-      // DIRECT SLUG GENERATOR - IMMUNE TO TYPESCRIPT ERRORS
       const slugClean = titleClean
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
@@ -178,9 +178,6 @@ Schema requirements:
       const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       const firebaseApp = initializeApp(firebaseConfig);
       db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-      
-      const { articleService } = await import('./src/services/articleService');
-      await articleService.ensureContentExists();
     }
   } catch (err) {
     console.error("[Server] Firebase Init Error:", err);
